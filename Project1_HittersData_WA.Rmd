@@ -1,0 +1,407 @@
+---
+title: "Stats2 Project 1"
+date: "`r Sys.Date()`"
+author: "William Arnost"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    toc_depth: 3
+---
+
+
+```{r knitr_init, echo=FALSE, cache=FALSE,message=FALSE}
+library(knitr)
+library(rmdformats)
+library(tidyverse)
+library(kableExtra)
+library(doParallel)
+
+workers <- makeCluster(12L)
+registerDoParallel(workers)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=FALSE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+# Hitters Data Set  
+
+Source: https://www.kaggle.com/floser/hitters  
+
+The following text is verbatim from the website. It is mostly so I don't have to go look at it constantly, we should delete or rephrase for the final submission.  
+
+This dataset is part of the R-package ISLR and is used in the related book by G. James et al. (2013) "An Introduction to Statistical Learning with applications in R" to demonstrate how Ridge regression and the LASSO are performed using R.  
+
+This dataset was originally taken from the StatLib library which is maintained at Carnegie Mellon University. This is part of the data that was used in the 1988 ASA Graphics Section Poster Session. The salary data were originally from Sports Illustrated, April 20, 1987. The 1986 and career statistics were obtained from The 1987 Baseball Encyclopedia Update published by Collier Books, Macmillan Publishing Company, New York.
+
+Format A data frame with 322 observations of major league players on the following 20 variables. AtBat Number of times at bat in 1986 Hits Number of hits in 1986 HmRun Number of home runs in 1986 Runs Number of runs in 1986 RBI Number of runs batted in in 1986 Walks Number of walks in 1986 Years Number of years in the major leagues CAtBat Number of times at bat during his career CHits Number of hits during his career CHmRun Number of home runs during his career CRuns Number of runs during his career CRBI Number of runs batted in during his career CWalks Number of walks during his career League A factor with levels A and N indicating player’s league at the end of 1986 Division A factor with levels E and W indicating player’s division at the end of 1986 PutOuts Number of put outs in 1986 Assists Number of assists in 1986 Errors Number of errors in 1986 Salary 1987 annual salary on opening day in thousands of dollars NewLeague A factor with levels A and N indicating player’s league at the beginning of 1987  
+
+Please cite/acknowledge: Games, G., Witten, D., Hastie, T., and Tibshirani, R. (2013) An Introduction to Statistical Learning with applications in R, www.StatLearning.com, Springer-Verlag, New York.  
+
+## Dictionary  
+
+Again, not original content, this is from the website I am just making it more readable.  
+
+Format A data frame with 322 observations of major league players on the following 20 variables.  
+AtBat Number of times at bat in 1986  
+Hits Number of hits in 1986  
+HmRun Number of home runs in 1986  
+Runs Number of runs in 1986  
+RBI Number of runs batted in in 1986  
+Walks Number of walks in 1986  
+Years Number of years in the major leagues  
+CAtBat Number of times at bat during his career  
+CHits Number of hits during his career  
+CHmRun Number of home runs during his career  
+CRuns Number of runs during his career  
+CRBI Number of runs batted in during his career  
+CWalks Number of walks during his career  
+League A factor with levels A and N indicating player’s league at the end of 1986  
+Division A factor with levels E and W indicating player’s division at the end of 1986  
+PutOuts Number of put outs in 1986  
+Assists Number of assists in 1986  
+Errors Number of errors in 1986  
+Salary 1987 annual salary on opening day in thousands of dollars  
+NewLeague A factor with levels A and N indicating player’s league at the beginning of 1987  
+
+## Data Import  
+
+The data has 322 observations and 20 variables. 17 numeric variables and 3 character variables.  
+```{r import}
+hitters <- read_csv("Hitters.csv")
+str(hitters)
+head(hitters)
+```
+
+## Check for missing data  
+
+Salary seems to be missing for 17ish percent of the data, all other fields are present. I should look at the data dictionary its strange that the dependent variable has that much missing here.  
+
+```{r missing}
+library(naniar)
+gg_miss_var(hitters, show_pct=TRUE) + labs(title="Percent Missing by Data Field") +
+  theme(legend.position = "none",plot.title = element_text(hjust = 0.5),axis.title.y=element_text(angle=0,vjust=1))
+```
+
+## Helper Functions  
+
+These are to just make EDA a little faster.  
+
+```{r helper}
+barPlot <- function(df = hitters, x) {
+  ggplot(df, aes_string(x = x)) +
+    geom_bar() 
+}
+
+propPlot <- function(df = hitters, x, y) {
+  ggplot(df, aes_string(x = x, fill = y)) +
+    geom_bar(position = "fill") +
+    scale_y_continuous(labels = scales::percent)
+}
+
+fancyTable <- function(df = hitters, x) {
+  df %>% group_by_at(x) %>% 
+    summarise(Count = n(), Proportion = scales::percent(n()/dim(df)[1])) %>% 
+    kable() %>% kable_styling(full_width = FALSE)
+}
+
+vioPlot <- function(df = hitters, x, y) {
+  ggplot(df, aes_string(x = x, y = y, fill = x)) + 
+    geom_violin(show.legend = FALSE) + 
+    geom_boxplot(width = 0.20, show.legend = FALSE) + 
+    stat_summary(fun.y=mean, geom="point",
+                 shape=5, size=4, color = "black",
+                 show.legend = FALSE)
+}
+
+histPlot <- function(df = hitters, x){
+  ggplot(df,aes_string(x)) + geom_histogram(bins = 30) 
+}
+
+scatterPlot <- function(df = hitters, x, y = "Salary") {
+  ggplot(df, aes_string(x = x, y = y)) + geom_point() + geom_smooth(method="lm")
+}
+```
+
+## Exploratory Data Analysis  
+
+### Pre-Processing  
+
+We can't do any prediction on missing values. I am choosing to eliminate them now. A sub analyis would look at whether or not independent variables of missing observations have a different distribution.  
+
+```{r preprocess}
+colsToFactor <- c("League","Division","NewLeague")
+hitters[,colsToFactor] <- lapply(hitters[,colsToFactor], as.factor)
+hitters <- hitters %>% filter(!is.na(Salary))
+```
+
+
+### Salary  
+
+Salary is non-normal. May benefit from transformation. 59 NAs. Min Salary ~67.5K, not bad.  
+
+```{r Salary}
+ggplot(hitters,aes(Salary)) + geom_histogram(aes(y=..density..), bins = 30) + 
+   stat_function(fun=dnorm,
+      color="red",
+      args=list(mean=mean(hitters$Salary), 
+      sd=sd(hitters$Salary))) 
+summary(hitters$Salary)
+```
+
+### AtBat  
+
+Number of times at bat in 1986. Positive influence on Salary.    
+
+```{r AtBat}
+histPlot(x="AtBat")
+summary(hitters$AtBat)
+vioPlot(x = "League",y="AtBat")
+vioPlot(x = "Division",y="AtBat")
+scatterPlot(x = "AtBat")
+```
+
+### Hits  
+
+Hits Number of hits in 1986. Positive influence on Salary    
+
+```{r Hits}
+histPlot(x="Hits")
+summary(hitters$Hits)
+vioPlot(x = "League",y="Hits")
+vioPlot(x = "Division",y="Hits")
+scatterPlot(x = "Hits")
+```
+
+### HmRun  
+
+HmRun Number of home runs in 1986  
+
+```{r HmRun}
+histPlot(x="HmRun")
+summary(hitters$HmRun)
+vioPlot(x = "League",y="HmRun")
+vioPlot(x = "Division",y="HmRun")
+scatterPlot(x = "HmRun")
+```
+
+### Runs    
+
+Runs Number of runs in 1986   
+
+```{r Runs}
+histPlot(x="Runs")
+summary(hitters$Runs)
+vioPlot(x = "League",y="Runs")
+vioPlot(x = "Division",y="Runs")
+scatterPlot(x = "Runs")
+```
+
+### RBI  
+
+RBI Number of runs batted in in 1986   
+
+```{r RBI}
+histPlot(x="RBI")
+summary(hitters$RBI)
+vioPlot(x = "League",y="RBI")
+vioPlot(x = "Division",y="RBI")
+scatterPlot(x = "RBI")
+```
+
+### Walks  
+
+Walks Number of walks in 1986  
+
+```{r Walks}
+histPlot(x="Walks")
+summary(hitters$Walks)
+vioPlot(x = "League",y="Walks")
+vioPlot(x = "Division",y="Walks")
+scatterPlot(x = "Walks")
+```
+
+### Years    
+
+Years Number of years in the major leagues    
+
+```{r Years}
+histPlot(x="Years")
+summary(hitters$Years)
+vioPlot(x = "League",y="Years")
+vioPlot(x = "Division",y="Years")
+scatterPlot(x = "Years")
+```
+
+### CAtBat  
+
+CAtBat Number of times at bat during his career   
+
+```{r CAtBat}
+histPlot(x="CAtBat")
+summary(hitters$CAtBat)
+vioPlot(x = "League",y="CAtBat")
+vioPlot(x = "Division",y="CAtBat")
+scatterPlot(x = "CAtBat")
+```
+
+### CHits   
+
+CHits Number of hits during his career   
+
+```{r CHits}
+histPlot(x="CHits")
+summary(hitters$CHits)
+vioPlot(x = "League",y="CHits")
+vioPlot(x = "Division",y="CHits")
+scatterPlot(x = "CHits")
+```
+
+### CHmRun   
+
+CHmRun Number of home runs during his career   
+
+```{r CHmRun}
+histPlot(x="CHmRun")
+summary(hitters$CHmRun)
+vioPlot(x = "League",y="CHmRun")
+vioPlot(x = "Division",y="CHmRun")
+scatterPlot(x = "CHmRun")
+```
+
+### CRuns   
+
+CRuns Number of runs during his career    
+
+```{r CRuns}
+histPlot(x="CRuns")
+summary(hitters$CRuns)
+vioPlot(x = "League",y="CRuns")
+vioPlot(x = "Division",y="CRuns")
+scatterPlot(x = "CRuns")
+```
+
+### CRBI   
+
+CRBI Number of runs batted in during his career     
+
+```{r CRBI}
+histPlot(x="CRBI")
+summary(hitters$CRBI)
+vioPlot(x = "League",y="CRBI")
+vioPlot(x = "Division",y="CRBI")
+scatterPlot(x = "CRBI")
+```
+
+### CWalks   
+
+CWalks Number of walks during his career     
+
+```{r CWalks}
+histPlot(x="CWalks")
+summary(hitters$CWalks)
+vioPlot(x = "League",y="CWalks")
+vioPlot(x = "Division",y="CWalks")
+scatterPlot(x = "CWalks")
+```
+
+### PutOuts     
+
+PutOuts Number of put outs in 1986     
+
+```{r PutOuts}
+histPlot(x="PutOuts")
+summary(hitters$PutOuts)
+vioPlot(x = "League",y="PutOuts")
+vioPlot(x = "Division",y="PutOuts")
+scatterPlot(x = "PutOuts")
+```
+
+### Assists 
+
+Assists Number of assists in 1986  
+
+```{r Assists}
+histPlot(x="Assists")
+summary(hitters$Assists)
+vioPlot(x = "League",y="Assists")
+vioPlot(x = "Division",y="Assists")
+scatterPlot(x = "Assists")
+```
+
+### Errors  
+
+Errors Number of errors in 1986    
+
+```{r Errors}
+histPlot(x="Errors")
+summary(hitters$Errors)
+vioPlot(x = "League",y="Errors")
+vioPlot(x = "Division",y="Errors")
+scatterPlot(x = "Errors")
+```
+
+### League  
+
+League A factor with levels A and N indicating player’s league at the end of 1986  
+
+```{r League}
+fancyTable(x="League")
+barPlot(x="League")
+vioPlot(x = "League",y="Salary")
+```
+
+### Division  
+
+Division A factor with levels E and W indicating player’s division at the end of 1986    
+
+```{r Division}
+fancyTable(x="Division")
+barPlot(x="Division")
+vioPlot(x = "Division",y="Salary")
+```
+
+### NewLeague  
+
+NewLeague A factor with levels A and N indicating player’s league at the beginning of 1987    
+
+```{r NewLeague}
+fancyTable(x="NewLeague")
+barPlot(x="NewLeague")
+vioPlot(x = "NewLeague",y="Salary")
+```
+
+### Correlation Plot  
+
+```{r correlation}
+library(GGally)
+#ggpairs(data = hitters, 
+#              mapping = aes(color = League),
+#              columns = c("Salary","AtBat","Hits","HmRun","Runs","RBI","Walks","Years",
+#                          "CAtBat","CHits","CHmRun","CRuns","CRBI","CWalks","PutOuts",
+#                          "Assists","Errors"))
+
+# ggpairs(data = hitters, 
+#               mapping = aes(color = League),
+#               columns = c("Salary","CAtBat","CHits","CHmRun","CRuns","CRBI","CWalks","PutOuts",
+#                           "Assists","Errors"))
+# 
+# ggpairs(data = hitters, 
+#               mapping = aes(color = League),
+#               columns = c("Salary","AtBat","Hits","HmRun","Runs","RBI","Walks","Years"))
+
+library(corrplot)
+cors <- cor(hitters %>% keep(is.numeric))
+corrplot(cors, method="circle")
+```
+
+
+
+
