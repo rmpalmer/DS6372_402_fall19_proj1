@@ -7,6 +7,12 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 library(GGally)
+
+logit <- function(x)
+{
+  p <- x/2461
+  return (log(p/(1-p)))
+}
 ```
 
 ## Two Way ANOVA
@@ -17,7 +23,8 @@ Here is where we will do Two Way ANOVA, with League and Division as the two cate
 hitters <- read_csv("Hitters.csv")
 hitters$Division <- as.factor(hitters$Division)
 hitters$League   <- as.factor(hitters$League)
-for_anova <- hitters %>% filter(!is.na(Salary)) %>% mutate(logs = log(Salary)) %>% select(logs,Division,League)
+for_anova <- hitters %>% filter(!is.na(Salary)) %>% select(Salary,Division,League) %>%
+  mutate(logs = log(Salary),sqrts=sqrt(Salary),foo=logit(Salary),bar=1/Salary,aaa=log(bar))
 ```
 
 ```{r}
@@ -28,3 +35,9 @@ for_anova %>% ggpairs()
 ggplot(hitters,aes(x=League,y=Salary,group=Division,colour=Division)) + ylab("Salary") + xlab("League") + geom_point()
 ```
 
+```{r}
+hitters_aov.fit<-aov(logs~Division+League+Division:League,data=for_anova)
+par(mfrow=c(1,2))
+plot(hitters_aov.fit$fitted.values,hitters_aov.fit$residuals,ylab="Resdiduals",xlab="Fitted")
+qqnorm(hitters_aov.fit$residuals)
+```
