@@ -24,8 +24,9 @@ Here is where we will do Two Way ANOVA, with League and Division as the two cate
 hitters <- read_csv("Hitters.csv")
 hitters$Division <- as.factor(hitters$Division)
 hitters$League   <- as.factor(hitters$League)
-for_anova <- hitters %>% filter(!is.na(Salary)) %>% select(Salary,Division,League) %>%
-  mutate(logs = log(Salary))
+
+for_anova <- hitters %>% dplyr::filter(!is.na(Salary)) %>% dplyr::select(Salary,Division,League) %>%
+  dplyr::mutate(logs = log(Salary))
 ```
 
 ### Hypotheses
@@ -76,6 +77,8 @@ plotNormalHistogram(two_way_anova_residuals)
 Scatterplot of Residuals
 ```{r}
 plot(fitted(two_way_anova_model),two_way_anova_residuals)
+resi_df = data.frame(cbind(fitted=fitted(two_way_anova_model),resid=two_way_anova_residuals))
+resi_df %>% ggplot(aes(x=fitted,y=resid)) + geom_point() + geom_jitter(width=0.03,height=0.0)
 ```
 
 LS means for main effects (Division)
