@@ -1,0 +1,11 @@
+---
+title: "Two Way Anova"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Two Way ANOVA
+Here is where we will do Two Way ANOVA, with League and Division as the two categorical variables.
