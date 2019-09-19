@@ -6,15 +6,25 @@ output: github_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
+library(GGally)
 ```
 
 ## Two Way ANOVA
 Here is where we will do Two Way ANOVA, with League and Division as the two categorical variables.
 
 ```{r}
-ggplot(hitters,aes(x=League,y=Salary,group=Division,colour=Division)) + ylab("Salary") + xlab("League") + geom_point()
+# will replace this when master .rmd file does transform.
+hitters <- read_csv("Hitters.csv")
+hitters$Division <- as.factor(hitters$Division)
+hitters$League   <- as.factor(hitters$League)
+for_anova <- hitters %>% filter(!is.na(Salary)) %>% mutate(logs = log(Salary)) %>% select(logs,Division,League)
 ```
 
 ```{r}
-ggplot(hitters,aes(y=Salary)) + geom_boxplot() + facet_wrap(Division ~ League)
+for_anova %>% ggpairs()
 ```
+
+```{r}
+ggplot(hitters,aes(x=League,y=Salary,group=Division,colour=Division)) + ylab("Salary") + xlab("League") + geom_point()
+```
+
