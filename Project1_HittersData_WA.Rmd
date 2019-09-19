@@ -403,5 +403,8 @@ corrplot(cors, method="circle")
 ```
 
 
+```{r child = 'TwoWayAnova.Rmd'}
+```
+
 
 
