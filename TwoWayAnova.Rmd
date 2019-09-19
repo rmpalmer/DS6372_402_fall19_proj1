@@ -5,7 +5,16 @@ output: github_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
 ```
 
-### Two Way ANOVA
+## Two Way ANOVA
 Here is where we will do Two Way ANOVA, with League and Division as the two categorical variables.
+
+```{r}
+ggplot(hitters,aes(x=League,y=Salary,group=Division,colour=Division)) + ylab("Salary") + xlab("League") + geom_point()
+```
+
+```{r}
+ggplot(hitters,aes(y=Salary)) + geom_boxplot() + facet_wrap(Division ~ League)
+```
