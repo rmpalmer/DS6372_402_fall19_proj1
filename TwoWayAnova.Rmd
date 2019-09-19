@@ -120,7 +120,7 @@ CLD
 pd = position_dodge(0.6)
 ggplot(CLD,aes(x=Division,y=lsmean,colour=League,label=.group)) +
   geom_point(position=pd) +
-  geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL,position=pd)) +
+  geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL),position=pd) +
   ylab("Least square mean\nLog Salary")
 ```
 
