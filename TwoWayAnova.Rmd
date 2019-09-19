@@ -6,13 +6,14 @@ output: github_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
-library(GGally)
-
-logit <- function(x)
-{
-  p <- x/2461
-  return (log(p/(1-p)))
-}
+library(GGally)    # for ggpairs()
+library(tidyverse) # for read_csv
+library(FSA)       # for Summarize()
+library(car)       # for Anova()
+library(rcompanion)# for plotNormalHistogram()
+library(multcompView)# for ...
+library(lsmeans)   #
+library(multcomp)  # for cld
 ```
 
 ## Two Way ANOVA
@@ -24,7 +25,17 @@ hitters <- read_csv("Hitters.csv")
 hitters$Division <- as.factor(hitters$Division)
 hitters$League   <- as.factor(hitters$League)
 for_anova <- hitters %>% filter(!is.na(Salary)) %>% select(Salary,Division,League) %>%
-  mutate(logs = log(Salary),sqrts=sqrt(Salary),foo=logit(Salary),bar=1/Salary,aaa=log(bar))
+  mutate(logs = log(Salary))
+```
+
+### Hypotheses
+
+### Check Assumptions
+
+#### Are the cell sizes balanced
+
+```{r}
+Summarize(logs ~ League + Division,data=for_anova)
 ```
 
 ```{r}
@@ -41,3 +52,46 @@ par(mfrow=c(1,2))
 plot(hitters_aov.fit$fitted.values,hitters_aov.fit$residuals,ylab="Resdiduals",xlab="Fitted")
 qqnorm(hitters_aov.fit$residuals)
 ```
+
+Define a linear model
+
+```{r}
+two_way_anova_model = lm(logs ~ Division + League + Division:League,data=for_anova)
+summary(two_way_anova_model)
+```
+
+Conduct Analysis of Variance
+
+```{r}
+Anova(two_way_anova_model,type="III")
+```
+
+Histogram of Residuals
+
+```{r}
+two_way_anova_residuals <- residuals(two_way_anova_model)
+plotNormalHistogram(two_way_anova_residuals)
+```
+
+Scatterplot of Residuals
+```{r}
+plot(fitted(two_way_anova_model),two_way_anova_residuals)
+```
+
+LS means for main effects (Division)
+```{r}
+marginal <- lsmeans(two_way_anova_model,~Division)
+pairs(marginal,adjust="tukey")
+CLD <- cld(marginal)
+CLD
+```
+
+LS means for main effects (League)
+```{r}
+marginal <- lsmeans(two_way_anova_model,~League)
+pairs(marginal,adjust="tukey")
+CLD <- cld(marginal)
+CLD
+```
+
+
