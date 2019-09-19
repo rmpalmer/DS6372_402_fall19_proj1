@@ -92,6 +92,35 @@ marginal <- lsmeans(two_way_anova_model,~League)
 pairs(marginal,adjust="tukey")
 CLD <- cld(marginal)
 CLD
+ggplot(CLD,aes(x=League,y=lsmean,label=.group)) +
+  geom_point() +
+  geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL)) +
+  ylab("Least square mean\nLog Salary")
+```
+
+LS means for main effects (Division)
+```{r}
+marginal <- lsmeans(two_way_anova_model,~Division)
+pairs(marginal,adjust="tukey")
+CLD <- cld(marginal)
+CLD
+ggplot(CLD,aes(x=Division,y=lsmean,label=.group)) +
+  geom_point() +
+  geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL)) +
+  ylab("Least square mean\nLog Salary")
+```
+
+
+LS means for Interactiopn
+```{r}
+marginal <- lsmeans(two_way_anova_model,Division+League)
+pairs(marginal,adjust="tukey")
+CLD <- cld(marginal)
+CLD
+ggplot(CLD,aes(x=Division,y=lsmean,colour=League,label=.group)) +
+  geom_point() +
+  geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL,position=pd)) +
+  ylab("Least square mean\nLog Salary")
 ```
 
 
