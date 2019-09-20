@@ -67,6 +67,13 @@ hitters_aov.fit<-aov(logs~Division+League+Division:League,data=for_anova)
 summary(hitters_aov.fit)
 ```
 
+Make all pairwise comparisons
+```{r}
+TukeyHSD(hitters_aov.fit,"Division:League",conf.level=.95)
+```
+
+The only statistically significant difference is in the American League, between the East and West.
+
 ```{r}
 par(mfrow=c(1,2))
 plot(hitters_aov.fit$fitted.values,hitters_aov.fit$residuals,ylab="Resdiduals",xlab="Fitted")
