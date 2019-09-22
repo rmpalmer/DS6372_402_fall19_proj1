@@ -16,7 +16,7 @@ library(tidyverse)
 library(kableExtra)
 library(doParallel)
 
-workers <- makeCluster(12L)
+workers <- makeCluster(8L)
 registerDoParallel(workers)
 
 ## Global options
@@ -140,6 +140,7 @@ We can't do any prediction on missing values. I am choosing to eliminate them no
 colsToFactor <- c("League","Division","NewLeague")
 hitters[,colsToFactor] <- lapply(hitters[,colsToFactor], as.factor)
 hitters <- hitters %>% filter(!is.na(Salary))
+hitters$logSalary <- log(hitters$Salary)
 ```
 
 
@@ -403,8 +404,27 @@ corrplot(cors, method="circle")
 ```
 
 
-```{r child = 'TwoWayAnova.Rmd'}
-```
+## LASSO Selecction
 
+```{r}
+library(caret)
+lambda <- 10^seq(-3, 3, length = 100)
+set.seed(314159)
+
+lasso <- train(
+  logSalary ~., data = hitters %>% select(-Salary), method = "glmnet",
+  trControl = trainControl("cv", number = 5),
+  tuneGrid = expand.grid(alpha = 1, lambda = lambda)
+  )
+# Model coefficients
+coef(lasso$finalModel, lasso$bestTune$lambda)
+# Make predictions
+predictions <- lasso %>% predict(hitters)
+# Model prediction performance
+perf<-data.frame(
+  RMSE = RMSE(exp(predictions), hitters$Salary),
+  Rsquare = R2(exp(predictions), hitters$Salary)
+)
+```
 
 
