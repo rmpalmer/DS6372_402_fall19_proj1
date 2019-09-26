@@ -427,4 +427,139 @@ perf<-data.frame(
 )
 ```
 
+## Two Way Anova
+
+Basic Flow  
+    * What Situation are we in?  
+    * Plot Data (Mean Profiling)  
+    * Fit Full Model with both factors and Interaction  
+    * Diagnostics  
+        * Residuals  
+        * Normality, Independence, Constant Variance  
+        * Outliers  
+    * Testing  
+        * High Level Anova  
+        * Contrasts  
+        
+### What Situation are we in?  
+
+### Mean Profiling  
+
+```{r meanstable}
+library(FSA)
+
+Summarize(Salary ~ League + Division,data=hitters)
+
+mysummary<-function(x){
+  result<-c(length(x),mean(x),sd(x),sd(x)/length(x),min(x),max(x),IQR(x))
+  names(result)<-c("N","Mean","SD","SE","Min","Max","IQR")
+  return(result)
+}
+sumstats<-aggregate(Salary~League*Division,data=hitters,mysummary)
+sumstats<-cbind(sumstats[,1:2],sumstats[,-(1:2)])
+sumstats
+```
+
+```{r means plot}
+ggplot(sumstats,aes(x=Division,y=Mean,group=League,colour=League))+
+  ylab("Salary")+
+  geom_line(position = position_dodge(0.6))+
+  geom_point(position = position_dodge(0.6))+
+  geom_errorbar(aes(ymin=Mean-SD,ymax=Mean+SD),width=.1, position = position_dodge(0.6))+
+  labs(title = "Salary Means Plot (SD)")
+```
+
+The SD bars largely overlap, variance seems difference E vs W but not A vs N. Bars not parallel.
+
+### Fit Full Model  
+
+```{r, message=FALSE}
+library(car)
+model.fit<-aov(Salary ~ League +Division + League:Division,data=hitters)
+Anova(model.fit,type=3)
+```
+
+It seems like only Division is significant, not League or the interaction
+
+### Diagnostics  
+
+```{r }
+library(gridExtra)
+myfits<-data.frame(fitted.values=model.fit$fitted.values,residuals=model.fit$residuals)
+
+#Residual vs Fitted
+plot1<-ggplot(myfits,aes(x=fitted.values,y=residuals))+ylab("Residuals")+
+  xlab("Predicted")+geom_point()
+
+#QQ plot of residuals  #Note the diagonal abline is only good for qqplots of normal data.
+plot2<-ggplot(myfits,aes(sample=residuals))+
+  stat_qq()+geom_abline(intercept=mean(myfits$residuals), slope = sd(myfits$residuals))
+
+#Histogram of residuals
+plot3<-ggplot(myfits, aes(x=residuals)) + 
+  geom_histogram(aes(y=..density..),color="black", fill="gray")+
+  geom_density(alpha=.1, fill="red")
+
+grid.arrange(plot1, plot2,plot3, ncol=3)
+```
+
+The residuals are non normal and cone shaped. A transformation of Salary seems to be required. I will re-run with a log transform.
+
+### Fit Full Model  
+
+```{r, message=FALSE}
+library(car)
+model.fit<-aov(logSalary ~ Division + League + Division:League,data=hitters)
+Anova(model.fit,type=3)
+
+model.fit<-aov(logSalary ~ League + Division + League:Division,data=hitters)
+Anova(model.fit,type=3)
+
+
+```
+
+Same as pre transform, It seems like only Division is significant, not League or the interaction
+
+### Diagnostics  
+
+```{r }
+library(gridExtra)
+myfits<-data.frame(fitted.values=model.fit$fitted.values,residuals=model.fit$residuals)
+
+#Residual vs Fitted
+plot1<-ggplot(myfits,aes(x=fitted.values,y=residuals))+ylab("Residuals")+
+  xlab("Predicted")+geom_point()
+
+#QQ plot of residuals  #Note the diagonal abline is only good for qqplots of normal data.
+plot2<-ggplot(myfits,aes(sample=residuals))+
+  stat_qq()+geom_abline(intercept=mean(myfits$residuals), slope = sd(myfits$residuals))
+
+#Histogram of residuals
+plot3<-ggplot(myfits, aes(x=residuals)) + 
+  geom_histogram(aes(y=..density..),color="black", fill="gray")+
+  geom_density(alpha=.1, fill="red")
+
+grid.arrange(plot1, plot2,plot3, ncol=3)
+```
+
+The residuals are non normal and cone shaped. A transformation of Salary seems to be required. I will re-run with a log transform.
+    
+### Testing
+
+I think we only need to test division since it was the only signficant factor. Running both for kicks. 
+
+```{r}
+TukeyHSD(model.fit,"Division",conf.level=.95) 
+plot(TukeyHSD(model.fit,"Division",conf.level=.95)) 
+
+TukeyHSD(model.fit,"League:Division",conf.level=.95) 
+plot(TukeyHSD(model.fit,"League:Division",conf.level=.95)) 
+```
+
+There is evidence of a difference between East and West of about $766 (exp(-0.2665039)) with a p-value 0.0145.
+
+
+
+
+
 
