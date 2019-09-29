@@ -14,6 +14,7 @@ library(knitr)
 library(rmdformats)
 library(tidyverse)
 library(kableExtra)
+library(gridExtra)
 library(doParallel)
 
 workers <- makeCluster(8L)
@@ -149,12 +150,29 @@ hitters$logSalary <- log(hitters$Salary)
 Salary is non-normal. May benefit from transformation. 59 NAs. Min Salary ~67.5K, not bad.  
 
 ```{r Salary}
-ggplot(hitters,aes(Salary)) + geom_histogram(aes(y=..density..), bins = 30) + 
+a <- ggplot(hitters,aes(Salary)) + geom_histogram(aes(y=..density..), bins = 30) + 
    stat_function(fun=dnorm,
       color="red",
       args=list(mean=mean(hitters$Salary), 
       sd=sd(hitters$Salary))) 
+a
 summary(hitters$Salary)
+
+b <- ggplot(hitters,aes(logSalary)) + geom_histogram(aes(y=..density..), bins = 30) + 
+   stat_function(fun=dnorm,
+      color="red",
+      args=list(mean=mean(hitters$logSalary), 
+      sd=sd(hitters$logSalary))) 
+b
+
+c <- vioPlot(x = "League",y="Salary")
+c
+
+d <- vioPlot(x = "Division",y="Salary")
+d
+```
+```{r}
+grid.arrange(a,b,c,d,ncol=2)
 ```
 
 ### AtBat  
@@ -458,7 +476,7 @@ Above we can see that the correlation is stronger with the 3rd plot and we gener
 
 With regards to model selection, our first attempt was to use Lasso, since it's generally regarded as being better than forward/backward/stepwise selection. Ridge is also another possibility, but it will include all predictors in the model. Ridge and Lasso are techniques that shrink the coefficient estimates to zero, include a tuning parameter and shrinkage penalty. Additionally, Ridge and Lasso are computationally less expensive than forward/backward/stepwise. Chapter 6 of ISLR mentioned above has a really good explanation of the different model selection techniques.
 
-```{r}
+```{r, eval=FALSE}
 
 # New attempt
 library(caret)
