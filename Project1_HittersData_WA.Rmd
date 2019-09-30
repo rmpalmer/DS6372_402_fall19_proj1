@@ -421,31 +421,7 @@ cors <- cor(hitters %>% keep(is.numeric))
 corrplot(cors, method="circle")
 ```
 
-
-## LASSO Selecction
-
-```{r}
-library(caret)
-lambda <- 10^seq(-3, 3, length = 100)
-set.seed(314159)
-
-lasso <- train(
-  logSalary ~., data = hitters %>% select(-Salary), method = "glmnet",
-  trControl = trainControl("cv", number = 5),
-  tuneGrid = expand.grid(alpha = 1, lambda = lambda)
-  )
-# Model coefficients
-coef(lasso$finalModel, lasso$bestTune$lambda)
-# Make predictions
-predictions <- lasso %>% predict(hitters)
-# Model prediction performance
-perf<-data.frame(
-  RMSE = RMSE(exp(predictions), hitters$Salary),
-  Rsquare = R2(exp(predictions), hitters$Salary)
-)
-```
-
-## LASSO Selection 2 ##
+## Linear Model Selection ##
 As mentioned above, we see some justification for logging Salary. Additionally, there is benefit to logging the career attributes as well, those the start with 'C'. Let's compare before and after scatter plots.
 
 * Scatter plots using Salary
@@ -470,20 +446,31 @@ hitters$logCWalks <- log(hitters$CWalks+1)
 ggpairs(data = hitters, columns = c('logSalary','logCAtBat','logCHits','logCHmRun','logCRuns','logCRBI','logCWalks'))
 ```
 
-Above we can see that the correlation is stronger with the 3rd plot and we generally see a better linear fit.
+Linear Model Selection*
 
-*Linear Model Selection*
+The following attempts to compare 4 different models
 
-With regards to model selection, our first attempt was to use Lasso, since it's generally regarded as being better than forward/backward/stepwise selection. Ridge is also another possibility, but it will include all predictors in the model. Ridge and Lasso are techniques that shrink the coefficient estimates to zero, include a tuning parameter and shrinkage penalty. Additionally, Ridge and Lasso are computationally less expensive than forward/backward/stepwise. Chapter 6 of ISLR mentioned above has a really good explanation of the different model selection techniques.
+* Least Squares
+* Ridge
+* Lasso
+* Elastic Net
 
-```{r, eval=FALSE}
+Ridge, Lasso and Elastic Net are know as shrinkage or methods, that constrain or shrink the regression coefficients to 0. They are a form of penalized regression, where a model is penalized for having too many variables. Ridge will generally perform better than least squares, but includes all predictors. With Lasso, some coefficients will be exactly 0, allowing us to simplify our model. Elastic Net is somewhere in between, includes more variables, but some will be 0.
 
-# New attempt
+```{r ModelSelection}
+
 library(caret)
 library(glmnet)
+library(gridExtra)
+
+# Prep data, create training and test data
+# Here it is split 75/25
+# If you are interested in not using the log of the C attributes, use the second hittersGlm set below
 hittersGlm <- hitters %>% select(-c("Salary","CAtBat","CHits","CHmRun","CRuns","CRBI","CWalks"))
+#hittersGlm <- hitters %>% select(-c("Salary","logCAtBat","logCHits","logCHmRun","logCRuns","logCRBI","logCWalks"))
+
 set.seed(123)
-training.samples <- hittersGlm$logSalary %>% createDataPartition(p = 0.8, list = FALSE)
+training.samples <- hittersGlm$logSalary %>% createDataPartition(p = 0.75, list = FALSE)
 train.data  <- hittersGlm[training.samples, ]
 test.data <- hittersGlm[-training.samples, ]
 
@@ -492,80 +479,7 @@ x <- model.matrix(logSalary~., train.data)[,-1]
 # Outcome variable
 y <- train.data$logSalary
 
-# Find the best lambda using cross-validation
-set.seed(123) 
-cv <- cv.glmnet(x, y, alpha = 0)
-
-# Display the best lambda value
-cv$lambda.min
-
-# Fit the final model on the training data
-modelRidge <- glmnet(x, y, alpha = 0, lambda = cv$lambda.min)
-
-# Display regression coefficients
-coef(modelRidge)
-
-# Make predictions on the test data
-x.test <- model.matrix(logSalary ~., test.data)[,-1]
-predictions <- modelRidge %>% predict(x.test) %>% as.vector()
-# Model performance metrics
-metricsRidge <- data.frame(
-  RMSERidge = RMSE(predictions, test.data$logSalary),
-  RsquareRidge = R2(predictions, test.data$logSalary)
-)
-
-  
-# LASSO
-# Find the best lambda using cross-validation
-# Note that alpha = 1 here
-set.seed(123) 
-cv <- cv.glmnet(x, y, alpha = 1)
-
-# Display the best lambda value
-cv$lambda.min
-
-# Fit the final model on the training data
-modelLasso <- glmnet(x, y, alpha = 1, lambda = cv$lambda.min)
-
-# Dsiplay regression coefficients
-coef(modelLasso)
-
-# Make predictions on the test data
-x.test <- model.matrix(logSalary ~., test.data)[,-1]
-predictions <- modelLasso %>% predict(x.test) %>% as.vector()
-# Model performance metrics
-metricsLasso <- data.frame(
-  RMSE = RMSE(predictions, test.data$logSalary),
-  Rsquare = R2(predictions, test.data$logSalary)
-)
-
-# Elastic Ridge
-# Build the model using the training set
-set.seed(123)
-modelElastic <- train(
-  logSalary ~., data = train.data, method = "glmnet",
-  trControl = trainControl("cv", number = 10),
-  tuneLength = 10
-)
-
-# Best tuning parameter
-modelElastic$bestTune
-
-# Coefficient of the final model. You need to specify the best lambda
-coef(modelElastic$finalModel, modelElastic$bestTune$lambda)
-
-# Make predictions on the test data
-x.test <- model.matrix(logSalary ~., test.data)[,-1]
-predictions <- modelElastic %>% predict(x.test)
-# Model performance metrics
-metricsElastic <- data.frame(
-  RMSE = RMSE(predictions, test.data$medv),
-  Rsquare = R2(predictions, test.data$medv)
-)
-
-
-### comparison
-
+# Setup a grid range of lambda values
 lambda <- 10^seq(-3, 3, length = 100)
 
 #Least Squares, just set lambda = 0
@@ -585,8 +499,7 @@ data.frame(
   Rsquare = R2(predictions, test.data$logSalary)
 )
 
-
-#Ridge
+#Ridge Model
 set.seed(123)
 ridge <- train(
   logSalary ~., data = train.data, method = "glmnet",
@@ -603,7 +516,7 @@ data.frame(
   Rsquare = R2(predictions, test.data$logSalary)
 )
 
-# Build the model
+#Lasso Model
 set.seed(123)
 lasso <- train(
   logSalary ~., data = train.data, method = "glmnet",
@@ -620,7 +533,7 @@ data.frame(
   Rsquare = R2(predictions, test.data$logSalary)
 )
 
-
+#Elastic Model
 set.seed(123)
 elastic <- train(
   logSalary ~., data = train.data, method = "glmnet",
@@ -638,102 +551,32 @@ data.frame(
 )
 
 models <- list(leastSquares = lSquares, ridge = ridge, lasso = lasso, elastic = elastic)
-resamples(models) %>% summary( metric = "RMSE")
+resamples(models) %>% summary(metric = "RMSE")
 
+library(gridExtra)
+# make predictions against full set
+fullPredictions <- lasso %>% predict(hittersGlm)
+lassoFits<-data.frame(fitted.values=fullPredictions,residuals=hittersGlm$logSalary)
 
-##############################
+#Residual vs Fitted
+lassoPlot1<-ggplot(lassoFits,aes(x=fitted.values,y=residuals))+ylab("Salary Log")+
+  xlab("Predicted")+geom_point()
 
-# Setup for glmnet
-library(caret)
-hittersGlm <- hitters %>% select(-c("Salary","CAtBat","CHits","CHmRun","CRuns","CRBI","CWalks"))
-x=model.matrix(logSalary~.,hittersGlm)[,-1]
-y=hittersGlm$logSalary
-grid=10^seq(3,-3,length=100)
+#QQ plot of residuals  #Note the diagonal abline is only good for qqplots of normal data.
+lassoPlot2<-ggplot(lassoFits,aes(sample=residuals))+
+  stat_qq()+geom_abline(intercept=mean(lassoFits$residuals), slope = sd(lassoFits$residuals))
 
-# Create filter for train/test
-set.seed(123)
-train=sample(1:nrow(x),nrow(x)/2)
-test=(-train)
-y.test=y[test]
+#Histogram of residuals
+lassoPlot3<-ggplot(lassoFits, aes(x=residuals)) + 
+  geom_histogram(aes(y=..density..),color="black", fill="gray", bins=20)+
+  geom_density(alpha=.1, fill="red")
 
-# Build model using training data
-lasso.mod=glmnet(x[train,],y[train],alpha =1,lambda=grid)
-plot(lasso.mod)
+#Residual minus Fitted vs Fitted
+lassoPlot4<-ggplot(lassoFits,aes(x=fitted.values,y=(residuals-fitted.values)))+ylab("Residuals")+
+  xlab("Predicted")+geom_point()
 
-# find lamda that results in smallest cross validation error and the MSE
-set.seed(1)
-cv.out=cv.glmnet(x[train,],y[train],alpha =1)
-plot(cv.out)
-bestlam =cv.out$lambda.min
-bestlam
-lasso.pred=predict(lasso.mod ,s=bestlam,newx=x[test ,])
-
-#Output
-testMSE_LASSO<-mean((y.test-lasso.pred)^2)
-testMSE_LASSO
-
-# Refit Lasso against full data set and output coefficients
-out=glmnet(x,y,alpha=1,lambda=grid)
-coef(out,s=bestlam)
-
-# William's input
-
-set.seed(123)
-
-library(caret)
-lambda <- 10^seq(-3, 3, length = 100)
-set.seed(314159)
-
-lasso <- train(
-  logSalary ~., data = hittersGlm, method = "glmnet",
-  trControl = trainControl("cv", number = 5),
-  tuneGrid = expand.grid(alpha = 1, lambda = lambda)
-  )
-# Model coefficients
-coef(lasso$finalModel, lasso$bestTune$lambda)
-# Make predictions
-predLasso <- lasso %>% predict(hitters)
-# Model prediction performance
-perfLasso<-data.frame(
-  RMSE = RMSE(exp(predLasso), hitters$Salary),
-  Rsquare = R2(exp(predLasso), hitters$Salary)
-)
-
-# Set Alpha = 0 for ridge
-ridge <- train(
-  logSalary ~., data = hittersGlm, method = "glmnet",
-  trControl = trainControl("cv", number = 5),
-  tuneGrid = expand.grid(alpha = 0, lambda = lambda)
-  )
-# Model coefficients
-coef(ridge$finalModel, ridge$bestTune$lambda)
-# Make predictions
-predRidge <- ridge %>% predict(hittersGlm)
-# Model prediction performance
-perfRidge<-data.frame(
-  RMSE = RMSE(exp(predRidge), hitters$Salary),
-  Rsquare = R2(exp(predRidge), hitters$Salary)
-)
-
-# Set Alpha = 0 for ridge, and set lamda = 0, should give us least squares estimate
-leastSquares <- train(
-  logSalary ~., data = hittersGlm, method = "glmnet",
-  trControl = trainControl("cv", number = 5),
-  tuneGrid = expand.grid(alpha = 0, lambda = 0)
-  )
-# Model coefficients
-coef(leastSquares$finalModel, leastSquares$bestTune$lambda)
-# Make predictions
-predLeastSquares <- leastSquares %>% predict(hittersGlm)
-# Model prediction performance
-perfLeastSquares<-data.frame(
-  RMSE = RMSE(exp(predLeastSquares), hitters$Salary),
-  Rsquare = R2(exp(predLeastSquares), hitters$Salary)
-)
+grid.arrange(lassoPlot1, lassoPlot2, lassoPlot3, lassoPlot4, ncol=2, nrow=2)
 ```
-
-
-
 
 ## Two Way Anova
 
