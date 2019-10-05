@@ -631,7 +631,7 @@ mysummary<-function(x){
   names(result)<-c("N","Mean","SD","SE","Min","Max","IQR")
   return(result)
 }
-sumstats<-aggregate(Salary~League*Division,data=hitters,mysummary)
+sumstats<-aggregate(logSalary~League*Division,data=hitters,mysummary)
 sumstats<-cbind(sumstats[,1:2],sumstats[,-(1:2)])
 sumstats
 ```
@@ -642,7 +642,7 @@ ggplot(sumstats,aes(x=Division,y=Mean,group=League,colour=League))+
   geom_line(position = position_dodge(0.6))+
   geom_point(position = position_dodge(0.6))+
   geom_errorbar(aes(ymin=Mean-SD,ymax=Mean+SD),width=.1, position = position_dodge(0.6))+
-  labs(title = "Salary Means Plot (SD)")
+  labs(title = "Log Salary Means Plot (SD)")
 ```
 
 The SD bars largely overlap, variance seems difference E vs W but not A vs N. Bars not parallel.
