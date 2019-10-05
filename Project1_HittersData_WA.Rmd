@@ -139,9 +139,23 @@ We can't do any prediction on missing values. I am choosing to eliminate them no
 
 ```{r preprocess}
 colsToFactor <- c("League","Division","NewLeague")
-hitters[,colsToFactor] <- lapply(hitters[,colsToFactor], as.factor)
-hitters <- hitters %>% filter(!is.na(Salary))
+hitters[,colsToFactor] <- lapply(hitters[,colsToFactor], as.factor) ## Converting char variables to factors
+hitters$Id <- seq(1:nrow(hitters)) # Adding ID column
+hitters <- hitters %>% filter(!is.na(Salary)) #Removing rows with no salary info
+
+#logging skewed variables
 hitters$logSalary <- log(hitters$Salary)
+hitters$logCAtBat <- log(hitters$CAtBat)
+hitters$logCHits <- log(hitters$CHits)
+hitters$logCHmRun <- log(hitters$CHmRun+1) ## We add 1 to deal with players with zero Homeruns
+hitters$logHmRun <- log(hitters$HmRun+1) ## We add 1 to deal with players with zero Homeruns
+hitters$logCRuns <- log(hitters$CRuns)
+hitters$logCRBI <- log(hitters$CRBI)
+hitters$logCWalks <- log(hitters$CWalks)
+
+hitters$outlier <- as.factor(ifelse(hitters$Id %in% c(173,241), 1, 0))
+
+
 ```
 
 
@@ -172,7 +186,7 @@ d <- vioPlot(x = "Division",y="Salary")
 d
 ```
 ```{r}
-grid.arrange(a,b,c,d,ncol=2)
+grid.arrange(a,b,ncol=2)
 ```
 
 ### AtBat  
@@ -425,23 +439,34 @@ corrplot(cors, method="circle")
 As mentioned above, we see some justification for logging Salary. Additionally, there is benefit to logging the career attributes as well, those the start with 'C'. Let's compare before and after scatter plots.
 
 * Scatter plots using Salary
-```{r}
+```{r pairsplot1, message=FALSE}
 ggpairs(data = hitters, columns = c('Salary','CAtBat','CHits','CHmRun','CRuns','CRBI','CWalks'))
 ```
 
 * Scatter plots using log of Salary
-```{r}
-ggpairs(data = hitters, columns = c('logSalary','CAtBat','CHits','CHmRun','CRuns','CRBI','CWalks'))
+```{r pairsplot2, message=FALSE}
+ggpairs(data = hitters, columns = c('logSalary','logCAtBat','logCHits','logCHmRun','logCRuns','logCRBI','logCWalks'),  lower = list(
+    mapping = aes(color = outlier)
+  ))
 ```
-
+```{r pairsplot3, message=FALSE}
+ggpairs(data = hitters, columns = c('logSalary','AtBat','Hits','HmRun','Runs','RBI','Walks'),  lower = list(
+    mapping = aes(color = outlier)
+  ))
+ggpairs(data = hitters, columns = c('logSalary','AtBat','Hits','logHmRun','HmRun','Runs','RBI','Walks','PutOuts','Assists','Errors'),  lower = list(
+    mapping = aes(color = outlier)
+  ))
+```
 * Scatter plots using log of Salary and log of Career Attributes. Important, I'm adding 1 to the log to avoid 0s/NAs.
-```{r}
-hitters$logCAtBat <- log(hitters$CAtBat+1)
-hitters$logCHits <- log(hitters$CHits+1)
-hitters$logCHmRun <- log(hitters$CHmRun+1)
-hitters$logCRuns <- log(hitters$CRuns+1)
-hitters$logCRBI <- log(hitters$CRBI+1)
-hitters$logCWalks <- log(hitters$CWalks+1)
+```{r, message=FALSE}
+## Moved this to data processing
+
+##hitters$logCAtBat <- log(hitters$CAtBat+1)
+##hitters$logCHits <- log(hitters$CHits+1)
+##hitters$logCHmRun <- log(hitters$CHmRun+1)
+##hitters$logCRuns <- log(hitters$CRuns+1)
+##hitters$logCRBI <- log(hitters$CRBI+1)
+##hitters$logCWalks <- log(hitters$CWalks+1)
 
 ggpairs(data = hitters, columns = c('logSalary','logCAtBat','logCHits','logCHmRun','logCRuns','logCRBI','logCWalks'))
 ```
@@ -466,7 +491,7 @@ library(gridExtra)
 # Prep data, create training and test data
 # Here it is split 75/25
 # If you are interested in not using the log of the C attributes, use the second hittersGlm set below
-hittersGlm <- hitters %>% select(-c("Salary","CAtBat","CHits","CHmRun","CRuns","CRBI","CWalks"))
+hittersGlm <- hitters %>% select(-c("Salary","CAtBat","CHits","CHmRun","CRuns","CRBI","CWalks","logHmRun","Id","outlier"))
 #hittersGlm <- hitters %>% select(-c("Salary","logCAtBat","logCHits","logCHmRun","logCRuns","logCRBI","logCWalks"))
 
 set.seed(123)
