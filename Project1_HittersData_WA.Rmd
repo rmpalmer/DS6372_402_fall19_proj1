@@ -577,6 +577,7 @@ data.frame(
 
 models <- list(leastSquares = lSquares, ridge = ridge, lasso = lasso, elastic = elastic)
 resamples(models) %>% summary(metric = "RMSE")
+resamples(models) %>% summary(metric = "Rsquared")
 
 library(gridExtra)
 # make predictions against full set
@@ -601,7 +602,39 @@ lassoPlot4<-ggplot(lassoFits,aes(x=fitted.values,y=(residuals-fitted.values)))+y
   xlab("Predicted")+geom_point()
 
 grid.arrange(lassoPlot1, lassoPlot2, lassoPlot3, lassoPlot4, ncol=2, nrow=2)
+
+
+#Use glm to build model based on lasso, and find intervals
+glmModel <- glm(hittersGlm$logSalary ~ hittersGlm$Hits + hittersGlm$Runs + hittersGlm$Walks + hittersGlm$League + hittersGlm$Division + hittersGlm$PutOuts + hittersGlm$Assists + hittersGlm$logCHmRun + hittersGlm$logCRuns + hittersGlm$logCRBI, data=hittersGlm)
+
+#Coefficients
+coef(glmModel)
+
+#Confidence Intervals
+confint(glmModel)
+
+# Here I am taking the model proposed by Lasso, and making a prediction on each of the observations.
+# Then compare that to the actual value
+glmPredict <- predict(glmModel,hittersGlm)
+glmASE <- mean((hitters$logSalary-glmPredict)^2)
+glmRMSE <- sqrt(glmASE)
+
+# Note, we can also compute RMSE with the call below. Doing the above was an excersise for self, it yields the same result. This is to compare ASE with RMSE.
+#glmRMSE <- RMSE(glmPredict,hitters$logSalary)
+glmR2 <- R2(glmPredict,hitters$logSalary)
+
+# Here we can see that the R2 is rougly the same, and the RMSE value is bit lower than what we found when comparing models on the test data.
+
+# Finally, let's do a vif call to validate our final model.
+library(car)
+vif(glmModel)
 ```
+
+We performed a comparison between 4 different models and the mean RMSE value was nearly the same for all 4. Lasso was selected because it resulted in the least number of coefficients, thereby producing a simpler, easier to explain model.
+
+We then took the features selected by Lasso and created a model for it using the entire data set. In this case, the R2 for the model was nearly the same as the other test models, and the RMSE was a bit less too.
+
+Using vif in the car library we found that there is some correlation between predictors, which makes sense. For example, hitting a home run will increase your Run and RBI attributes. We do see some large VIF values. This can indicate that the model can have a hard time estimating the coefficient, it doesn't necessarily degrade the quality of the predictors.
 
 ## Two Way Anova
 
