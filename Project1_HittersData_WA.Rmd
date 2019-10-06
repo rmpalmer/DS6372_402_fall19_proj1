@@ -769,6 +769,16 @@ There is evidence of a difference between East and West of about $766 (exp(-0.26
 
 
 
+```{r}
+levels(hitters$Division)
+
+library(lsmeans)
+leastsquare = lsmeans(model.fit, "Division")
+
+Contrasts = list(WvsE = c(-1, 1))
+contrast(leastsquare, Contrasts, adjust="none")
+
+```
 
 
 
