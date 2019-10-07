@@ -609,7 +609,8 @@ grid.arrange(lassoPlot1, lassoPlot2, lassoPlot3, lassoPlot4, ncol=2, nrow=2)
 glmModel <- glm(hittersGlm$logSalary ~ hittersGlm$Hits + hittersGlm$Runs + hittersGlm$Walks + hittersGlm$League + hittersGlm$Division + hittersGlm$PutOuts + hittersGlm$Assists + hittersGlm$logCHmRun + hittersGlm$logCRuns + hittersGlm$logCRBI, data=hittersGlm)
 
 #Coefficients
-coef(glmModel)
+#coef(glmModel)
+summary(glmModel)
 
 #Confidence Intervals
 confint(glmModel)
@@ -629,6 +630,25 @@ glmR2 <- R2(glmPredict,hitters$logSalary)
 # Finally, let's do a vif call to validate our final model.
 library(car)
 vif(glmModel)
+
+# Create a new model using just career hits and RBIs
+glmSimple <- glm(hittersGlm$logSalary ~ hittersGlm$logCRBI)
+glmSimplePredict <- predict(glmSimple,hittersGlm)
+
+glmSimpleRMSE <- RMSE(glmSimplePredict,hittersGlm$logSalary)
+glmSimpleR2 <- R2(glmSimplePredict,hittersGlm$logSalary)
+summary(glmSimple)
+confint(glmSimple)
+
+# Same as above, but remove outliers
+hittersNoOut <- hittersGlm[-c(173,241),]
+glmSimple <- glm(hittersNoOut$logSalary ~ hittersNoOut$logCRBI)
+glmSimplePredict <- predict(glmSimple,hittersNoOut)
+
+glmSimpleRMSE <- RMSE(glmSimplePredict,hittersNoOut$logSalary)
+glmSimpleR2 <- R2(glmSimplePredict,hittersNoOut$logSalary)
+summary(glmSimple)
+confint(glmSimple)
 ```
 
 We performed a comparison between 4 different models and the mean RMSE value was nearly the same for all 4. Lasso was selected because it resulted in the least number of coefficients, thereby producing a simpler, easier to explain model.
@@ -636,6 +656,8 @@ We performed a comparison between 4 different models and the mean RMSE value was
 We then took the features selected by Lasso and created a model for it using the entire data set. In this case, the R2 for the model was nearly the same as the other test models, and the RMSE was a bit less too.
 
 Using vif in the car library we found that there is some correlation between predictors, which makes sense. For example, hitting a home run will increase your Run and RBI attributes. We do see some large VIF values. This can indicate that the model can have a hard time estimating the coefficient, it doesn't necessarily degrade the quality of the predictors.
+
+We then tried a simplified model, using just one predictor. In this case, the RMSE was just a bit higher, around .60. Removing outliers, the RMSE goes to .57.
 
 ## Two Way Anova
 
