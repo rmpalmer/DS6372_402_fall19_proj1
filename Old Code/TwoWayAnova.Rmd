@@ -1,0 +1,150 @@
+---
+title: "Two Way Anova"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(GGally)    # for ggpairs()
+library(tidyverse) # for read_csv
+library(FSA)       # for Summarize()
+library(car)       # for Anova()
+library(rcompanion)# for plotNormalHistogram()
+library(multcompView)# for ...
+library(lsmeans)   #
+library(multcomp)  # for cld
+```
+
+## Two Way ANOVA
+Here is where we will do Two Way ANOVA, with League and Division as the two categorical variables.
+
+```{r}
+# will replace this when master .rmd file does transform.
+hitters <- read_csv("Hitters.csv")
+hitters$Division <- as.factor(hitters$Division)
+hitters$League   <- as.factor(hitters$League)
+
+for_anova <- hitters %>% dplyr::filter(!is.na(Salary)) %>% dplyr::select(Salary,Division,League) %>%
+  dplyr::mutate(logs = log(Salary))
+```
+
+### Hypotheses
+
+For The Division:
+Hl0: The mean of the log salary is the same between East and West.
+Hla: The mean of the log salary is different between East and West.
+
+For The League:
+Hd0: The mean of the log salary is the same between American and National
+Hda: The mean of the log salary is different between American and National
+
+For Interaction:
+
+
+### Check Assumptions
+
+The populations from which the samples were obtained must be normally or approximately normally distributed.
+The samples must be independent.
+The variances of the populations must be equal.
+The groups must have the same sample size.
+
+This summary shows that the groups have very nearly the same sample size.  The standard deviations are also nearly the same.  
+
+```{r}
+Summarize(logs ~ League + Division,data=for_anova)
+```
+
+These plots of histograms and box plots help confirm that the variances are the same.
+
+```{r}
+for_anova %>% dplyr::select(logs,Division,League) %>% ggpairs()
+```
+
+
+```{r}
+hitters_aov.fit<-aov(logs~Division+League+Division:League,data=for_anova)
+summary(hitters_aov.fit)
+```
+
+Make all pairwise comparisons
+```{r}
+TukeyHSD(hitters_aov.fit,"Division:League",conf.level=.95)
+```
+
+The only statistically significant difference is in the American League, between the East and West.
+
+```{r}
+par(mfrow=c(1,2))
+plot(hitters_aov.fit$fitted.values,hitters_aov.fit$residuals,ylab="Resdiduals",xlab="Fitted")
+qqnorm(hitters_aov.fit$residuals)
+```
+
+Define a linear model
+
+```{r}
+two_way_anova_model = lm(logs ~ Division + League + Division:League,data=for_anova)
+summary(two_way_anova_model)
+```
+
+Conduct Analysis of Variance
+
+```{r}
+Anova(two_way_anova_model,type="III")
+```
+
+Histogram of Residuals
+
+```{r}
+two_way_anova_residuals <- residuals(two_way_anova_model)
+plotNormalHistogram(two_way_anova_residuals)
+```
+
+Scatterplot of Residuals
+Note: jitter is added to help visualize the points.  There are only four truly distinct 
+fitted values.
+```{r}
+plot(fitted(two_way_anova_model),two_way_anova_residuals)
+resi_df = data.frame(cbind(fitted=fitted(two_way_anova_model),resid=two_way_anova_residuals))
+resi_df %>% ggplot(aes(x=fitted,y=resid)) + geom_point() + geom_jitter(width=0.015,height=0.0)
+```
+
+LS means for main effects (Division)
+```{r}
+marginal <- lsmeans(two_way_anova_model,~Division)
+pairs(marginal,adjust="tukey")
+CLD <- cld(marginal)
+CLD
+ggplot(CLD,aes(x=Division,y=lsmean,label=.group)) +
+  geom_point() +
+  geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL)) +
+  ylab("Least square mean\nLog Salary")
+```
+
+LS means for main effects (League)
+```{r}
+marginal <- lsmeans(two_way_anova_model,~League)
+pairs(marginal,adjust="tukey")
+CLD <- cld(marginal)
+CLD
+ggplot(CLD,aes(x=League,y=lsmean,label=.group)) +
+  geom_point() +
+  geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL)) +
+  ylab("Least square mean\nLog Salary")
+```
+
+
+LS means for Interactiopn
+```{r}
+marginal <- lsmeans(two_way_anova_model,~Division+League)
+pairs(marginal,adjust="tukey")
+CLD <- cld(marginal)
+CLD
+pd = position_dodge(0.6)
+ggplot(CLD,aes(x=Division,y=lsmean,colour=League,label=.group)) +
+  geom_point(position=pd) +
+  geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL),position=pd) +
+  ylab("Least square mean\nLog Salary")
+```
+
+
