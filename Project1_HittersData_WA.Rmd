@@ -784,20 +784,24 @@ library(lsmeans)
 leastsquare = lsmeans(model.fit, "Division")
 
 Contrasts = list(WvsE = c(-1, 1))
-contrast(leastsquare, Contrasts, adjust="none")
-
+myconstrast <- contrast(leastsquare, Contrasts, adjust="none")
+myconstrast
+confint(myconstrast)
+exp(-0.266)*1000
+exp(-0.48)*1000
+exp(-0.0525)*1000
 ```
 
 ```{r}
 Summarize(logSalary ~ Division,data=hitters2WA)
-
 model.fit<-aov(logSalary ~ Division ,data=hitters2WA)
 Anova(model.fit,type=3)
-
+confint(model.fit)
 leastsquare = lsmeans(model.fit, "Division")
 leastsquare %>% kable() %>% kable_styling(full_width = FALSE)
 Contrasts = list(WvsE = c(-1, 1))
 contrast(leastsquare, Contrasts, adjust="none") %>% kable() %>% kable_styling(full_width = FALSE)
+
 ```
 
 
