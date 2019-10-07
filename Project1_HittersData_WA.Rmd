@@ -153,7 +153,7 @@ hitters$logCRuns <- log(hitters$CRuns)
 hitters$logCRBI <- log(hitters$CRBI)
 hitters$logCWalks <- log(hitters$CWalks)
 
-hitters$outlier <- as.factor(ifelse(hitters$Id %in% c(173,241), 1, 0))
+hitters$outlier <- as.factor(ifelse(hitters$Id %in% c(296,218), 1, 0))
 
 
 ```
@@ -431,7 +431,8 @@ library(GGally)
 #               columns = c("Salary","AtBat","Hits","HmRun","Runs","RBI","Walks","Years"))
 
 library(corrplot)
-cors <- cor(hitters %>% keep(is.numeric))
+cors <- cor(hitters %>% keep(is.numeric) %>% select(c("AtBat","Hits","HmRun","Runs","RBI","Walks","Years","logCAtBat","logCHits","logCHmRun","logCRuns","logCRBI","logCWalks","PutOuts",
+"Assists","Errors","logSalary")))
 corrplot(cors, method="circle")
 ```
 
@@ -655,18 +656,25 @@ Basic Flow
 ### Mean Profiling  
 
 ```{r meanstable}
+hitters2WA <- hitters
+#hitters2WA <- hitters[-c(173,241),]
 library(FSA)
 
-Summarize(Salary ~ League + Division,data=hitters)
+Summarize(Salary ~ League + Division,data=hitters2WA)
+Summarize(logSalary ~ Division,data=hitters2WA)
 
 mysummary<-function(x){
   result<-c(length(x),mean(x),sd(x),sd(x)/length(x),min(x),max(x),IQR(x))
   names(result)<-c("N","Mean","SD","SE","Min","Max","IQR")
   return(result)
 }
-sumstats<-aggregate(logSalary~League*Division,data=hitters,mysummary)
+sumstats<-aggregate(logSalary~League*Division,data=hitters2WA,mysummary)
 sumstats<-cbind(sumstats[,1:2],sumstats[,-(1:2)])
 sumstats
+
+sumstats2<-aggregate(logSalary~Division,data=hitters2WA,mysummary)
+sumstats2<-cbind(sumstats2[,1:2],sumstats2[,-(1:2)])
+sumstats2
 ```
 
 ```{r means plot}
@@ -684,7 +692,7 @@ The SD bars largely overlap, variance seems difference E vs W but not A vs N. Ba
 
 ```{r, message=FALSE}
 library(car)
-model.fit<-aov(Salary ~ League +Division + League:Division,data=hitters)
+model.fit<-aov(Salary ~ League +Division + League:Division,data=hitters2WA)
 Anova(model.fit,type=3)
 ```
 
@@ -718,10 +726,10 @@ The residuals are non normal and cone shaped. A transformation of Salary seems t
 
 ```{r, message=FALSE}
 library(car)
-model.fit<-aov(logSalary ~ Division + League + Division:League,data=hitters)
+model.fit<-aov(logSalary ~ Division + League + Division:League,data=hitters2WA)
 Anova(model.fit,type=3)
 
-model.fit<-aov(logSalary ~ League + Division + League:Division,data=hitters)
+model.fit<-aov(logSalary ~ League + Division + League:Division,data=hitters2WA)
 Anova(model.fit,type=3)
 
 
@@ -770,7 +778,7 @@ There is evidence of a difference between East and West of about $766 (exp(-0.26
 
 
 ```{r}
-levels(hitters$Division)
+levels(hitters2WA$Division)
 
 library(lsmeans)
 leastsquare = lsmeans(model.fit, "Division")
@@ -780,5 +788,16 @@ contrast(leastsquare, Contrasts, adjust="none")
 
 ```
 
+```{r}
+Summarize(logSalary ~ Division,data=hitters2WA)
+
+model.fit<-aov(logSalary ~ Division ,data=hitters2WA)
+Anova(model.fit,type=3)
+
+leastsquare = lsmeans(model.fit, "Division")
+leastsquare %>% kable() %>% kable_styling(full_width = FALSE)
+Contrasts = list(WvsE = c(-1, 1))
+contrast(leastsquare, Contrasts, adjust="none") %>% kable() %>% kable_styling(full_width = FALSE)
+```
 
 
